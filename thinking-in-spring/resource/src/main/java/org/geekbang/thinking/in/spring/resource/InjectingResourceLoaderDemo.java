@@ -68,6 +68,5 @@ public class InjectingResourceLoaderDemo implements ResourceLoaderAware {
         context.refresh();
         // 关闭 Spring 应用上下文
         context.close();
-
     }
 }

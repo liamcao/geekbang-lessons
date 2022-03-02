@@ -61,6 +61,7 @@ public class AnnotatedSpringIoCContainerMetadataConfigurationDemo {
         for (Map.Entry<String, User> entry : usersMap.entrySet()) {
             System.out.printf("User Bean name : %s , content : %s \n", entry.getKey(), entry.getValue());
         }
+
         // 关闭 Spring 应用上下文
         context.close();
     }

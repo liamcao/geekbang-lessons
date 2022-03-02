@@ -16,18 +16,17 @@
  */
 package org.geekbang.thinking.in.spring.i18n;
 
-import org.springframework.context.MessageSource;
 import org.springframework.context.ResourceLoaderAware;
-import org.springframework.context.support.AbstractMessageSource;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.core.io.support.EncodedResource;
-import org.springframework.util.StringUtils;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.Reader;
 import java.nio.file.*;
-import java.text.MessageFormat;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
@@ -36,7 +35,7 @@ import java.util.concurrent.Executors;
 import static java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY;
 
 /**
- * 动态（更新）资源 {@link MessageSource} 实现
+ * 操作系统无关的实时的获取文件更新内容
  * <p>
  * 实现步骤：
  * <p>
@@ -47,41 +46,49 @@ import static java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY;
  * 5. 使用线程池处理文件变化
  * 6. 重新装载 Properties 对象
  *
- * @author <a href="mailto:mercyblitz@gmail.com">Mercy</a>
- * @see MessageSource
- * @see AbstractMessageSource
+ * @author liam
  * @since
  */
-public class DynamicResourceMessageSource extends AbstractMessageSource implements ResourceLoaderAware {
+public class RealtimeResource implements ResourceLoaderAware {
 
-    private static final String resourceFileName = "msg.properties";
+    private String resourceFileName = "realtime.properties";
 
-    private static final String resourcePath = "/META-INF/" + resourceFileName;
+    private String resourcePath = "/META-INF/" + resourceFileName;
 
     private static final String ENCODING = "UTF-8";
 
-    private final Resource messagePropertiesResource;
+    private Resource propertiesResource;
 
-    private final Properties messageProperties;
+    private Properties messageProperties;
 
-    private final ExecutorService executorService;
+    private ExecutorService executorService;
 
     private ResourceLoader resourceLoader;
 
 
-    public DynamicResourceMessageSource() {
-        this.messagePropertiesResource = getMessagePropertiesResource();
-        this.messageProperties = loadMessageProperties();
+    public RealtimeResource() {
+        init();
+    }
+
+    public RealtimeResource(String resourceFileName){
+        this.resourceFileName = resourceFileName;
+        this.resourcePath = "/META-INF/" + resourceFileName;
+        init();
+    }
+
+    private void init() {
+        this.propertiesResource = getPropertiesResource();
+        this.messageProperties = loadProperties();
         this.executorService = Executors.newSingleThreadExecutor();
         // 监听资源文件（Java NIO 2 WatchService）
         onMessagePropertiesChanged();
     }
 
     private void onMessagePropertiesChanged() {
-        if (this.messagePropertiesResource.isFile()) { // 判断是否为文件
+        if (this.propertiesResource.isFile()) { // 判断是否为文件
             // 获取对应文件系统中的文件
             try {
-                File messagePropertiesFile = this.messagePropertiesResource.getFile();
+                File messagePropertiesFile = this.propertiesResource.getFile();
                 Path messagePropertiesFilePath = messagePropertiesFile.toPath();
                 // 获取当前 OS 文件系统
                 FileSystem fileSystem = FileSystems.getDefault();
@@ -107,7 +114,7 @@ public class DynamicResourceMessageSource extends AbstractMessageSource implemen
     private void processMessagePropertiesChanged(WatchService watchService) {
         executorService.submit(() -> {
             while (true) {
-            WatchKey watchKey = null; // take 发生阻塞
+                WatchKey watchKey = null; // take 发生阻塞
                 watchKey = watchService.take(); //发生阻塞，当发生modify时，这里才会往下走
                 System.out.println("detect modification");
                 // watchKey 是否有效
@@ -124,7 +131,7 @@ public class DynamicResourceMessageSource extends AbstractMessageSource implemen
                                 // 处理为绝对路径
                                 Path filePath = dirPath.resolve(fileRelativePath);
                                 File file = filePath.toFile();
-                                Properties properties = loadMessageProperties(new FileReader(file));
+                                Properties properties = loadProperties(new FileReader(file));
                                 synchronized (messageProperties) {
                                     messageProperties.clear();
                                     messageProperties.putAll(properties);
@@ -132,7 +139,7 @@ public class DynamicResourceMessageSource extends AbstractMessageSource implemen
                             }
                         }
                     }
-                }  finally {
+                } finally {
                     if (watchKey != null) {
                         watchKey.reset(); // 重置 WatchKey
                     }
@@ -141,17 +148,17 @@ public class DynamicResourceMessageSource extends AbstractMessageSource implemen
         });
     }
 
-    private Properties loadMessageProperties() {
-        EncodedResource encodedResource = new EncodedResource(this.messagePropertiesResource, ENCODING);
+    private Properties loadProperties() {
+        EncodedResource encodedResource = new EncodedResource(this.propertiesResource, ENCODING);
         try {
-            return loadMessageProperties(encodedResource.getReader());
+            return loadProperties(encodedResource.getReader());
         } catch (IOException e) {
             e.printStackTrace();
         }
         return null;
     }
 
-    private Properties loadMessageProperties(Reader reader) {
+    private Properties loadProperties(Reader reader) {
         Properties properties = new Properties();
         try {
             properties.load(reader);
@@ -169,23 +176,19 @@ public class DynamicResourceMessageSource extends AbstractMessageSource implemen
         return properties;
     }
 
-    private Resource getMessagePropertiesResource() {
+    private Resource getPropertiesResource() {
         ResourceLoader resourceLoader = getResourceLoader();
         Resource resource = resourceLoader.getResource(resourcePath);
         return resource;
     }
 
-    @Override
-    protected MessageFormat resolveCode(String code, Locale locale) {
-        String messageFormatPattern = messageProperties.getProperty(code);
-        if (StringUtils.hasText(messageFormatPattern)) {
-            return new MessageFormat(messageFormatPattern, locale);
-        }
-        return null;
-    }
 
     private ResourceLoader getResourceLoader() {
         return this.resourceLoader != null ? this.resourceLoader : new DefaultResourceLoader();
+    }
+
+    public String getText(String name) {
+        return this.messageProperties.getProperty(name);
     }
 
     @Override
@@ -194,11 +197,13 @@ public class DynamicResourceMessageSource extends AbstractMessageSource implemen
     }
 
     public static void main(String[] args) throws InterruptedException {
-        DynamicResourceMessageSource messageSource = new DynamicResourceMessageSource();
+        RealtimeResource realtimeResource = new RealtimeResource("realtime.properties");
         for (int i = 0; i < 10000; i++) {
-            String message = messageSource.getMessage("name", new Object[]{}, Locale.getDefault());
+            String message = realtimeResource.getText("name");
             System.out.println(message);
             Thread.sleep(1000L);
         }
     }
+
+
 }

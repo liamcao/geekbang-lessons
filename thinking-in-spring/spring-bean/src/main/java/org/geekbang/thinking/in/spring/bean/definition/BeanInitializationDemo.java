@@ -16,6 +16,7 @@
  */
 package org.geekbang.thinking.in.spring.bean.definition;
 
+import com.sun.org.apache.bcel.internal.generic.FALOAD;
 import org.geekbang.thinking.in.spring.bean.factory.DefaultUserFactory;
 import org.geekbang.thinking.in.spring.bean.factory.UserFactory;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;

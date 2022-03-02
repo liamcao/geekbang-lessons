@@ -17,11 +17,20 @@
 package org.geekbang.thinking.in.spring.ioc.overview.dependency.injection;
 
 import org.geekbang.thinking.in.spring.ioc.overview.repository.UserRepository;
+import org.omg.PortableInterceptor.SYSTEM_EXCEPTION;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.ObjectFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.support.ClassPathXmlApplicationContext;
 import org.springframework.core.env.Environment;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.support.EncodedResource;
+import org.springframework.util.StreamUtils;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.util.Properties;
 
 /**
  * 依赖注入示例
